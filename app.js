@@ -200,6 +200,13 @@ function showFormMsg(t, type) {
 
 // ---- 绑定 UI 事件（等 DOM 就绪后执行，确保元素已存在）----
 function bindUI() {
+  // 若 supabase 组件未加载（如 CDN 被拦截），明确提示，避免点击无反应
+  if (typeof window.supabase === 'undefined') {
+    const b = $('configBanner');
+    b.classList.remove('hidden');
+    b.textContent = '⚠️ 数据库组件未能加载，请检查网络后刷新页面重试。';
+    return;
+  }
   $('settingsBtn').onclick = () => $('settingsModal').classList.remove('hidden');
   $('closeSettings').onclick = () => $('settingsModal').classList.add('hidden');
   $('saveSettings').onclick = () => {
