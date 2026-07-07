@@ -9,6 +9,14 @@ let bookings = [];
 
 const $ = (id) => document.getElementById(id);
 
+// 给 Promise 加超时，避免连不上时一直“转圈/无反应”
+function withTimeout(promise, ms, msg) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(msg)), ms))
+  ]);
+}
+
 // ---- 配置加载 ----
 function loadConfig() {
   const url = localStorage.getItem(LS_URL) || DEFAULT_URL;
@@ -30,14 +38,18 @@ async function init() {
 
 async function loadBookings() {
   if (!supabase) return;
-  const { data, error } = await supabase
-    .from('bookings')
-    .select('*')
-    .order('start_time', { ascending: true });
-  if (error) { showFormMsg('加载失败：' + error.message, 'err'); return; }
-  bookings = data || [];
-  renderTimeline();
-  renderList();
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('bookings').select('*').order('start_time', { ascending: true }),
+      8000, '连接数据库超时（很可能是网络无法访问 supabase.co）'
+    );
+    if (error) { showFormMsg('加载失败：' + error.message, 'err'); return; }
+    bookings = data || [];
+    renderTimeline();
+    renderList();
+  } catch (e) {
+    showFormMsg('加载失败：' + e.message, 'err');
+  }
 }
 
 // ---- 工具函数 ----
@@ -167,29 +179,38 @@ async function cancelBooking(id) {
 function submitBooking() {
   if (!supabase) return showFormMsg('数据库未连接，请刷新页面后重试', 'err');
 
+  const btn = $('submitBtn');
+  const oldText = btn.textContent;
+  const restoreBtn = () => { btn.disabled = false; btn.textContent = oldText; };
+  btn.disabled = true;
+  btn.textContent = '提交中…';
+
   const name = $('name').value.trim();
   const start = new Date($('start').value);
   const end = new Date($('end').value);
   const purpose = $('purpose').value.trim();
 
-  if (!name) return showFormMsg('请填写申请人', 'err');
-  if (isNaN(start) || isNaN(end)) return showFormMsg('时间格式错误', 'err');
-  if (start >= end) return showFormMsg('结束时间必须晚于开始时间', 'err');
-  if (start < new Date()) return showFormMsg('不能预约过去的时间', 'err');
+  if (!name) { showFormMsg('请填写申请人', 'err'); return restoreBtn(); }
+  if (isNaN(start) || isNaN(end)) { showFormMsg('时间格式错误', 'err'); return restoreBtn(); }
+  if (start >= end) { showFormMsg('结束时间必须晚于开始时间', 'err'); return restoreBtn(); }
+  if (start < new Date()) { showFormMsg('不能预约过去的时间', 'err'); return restoreBtn(); }
 
   const conflict = bookings.find(b => overlaps(start, end, new Date(b.start_time), new Date(b.end_time)));
   if (conflict) {
-    return showFormMsg(`时间冲突！与 ${conflict.name} 的 ${fmt(conflict.start_time)}–${fmt(conflict.end_time)} 重叠`, 'err');
+    showFormMsg(`时间冲突！与 ${conflict.name} 的 ${fmt(conflict.start_time)}–${fmt(conflict.end_time)} 重叠`, 'err');
+    return restoreBtn();
   }
 
-  supabase.from('bookings').insert({
-    name, start_time: start.toISOString(), end_time: end.toISOString(), purpose
-  }).then(({ error }) => {
+  withTimeout(
+    supabase.from('bookings').insert({ name, start_time: start.toISOString(), end_time: end.toISOString(), purpose }),
+    8000, '提交超时，很可能是网络无法访问数据库服务器（supabase.co）'
+  ).then(({ error }) => {
     if (error) return showFormMsg('提交失败：' + error.message, 'err');
     showFormMsg('预约成功 ✓', 'ok');
     $('purpose').value = '';   // 只清空用途，保留申请人/时间方便连续预约
     loadBookings();
-  });
+  }).catch(err => showFormMsg('提交失败：' + err.message, 'err'))
+    .finally(restoreBtn);
 }
 
 function showFormMsg(t, type) {
