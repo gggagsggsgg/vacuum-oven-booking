@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>真空干燥箱预约系统</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar">
+  <h1>🔬 真空干燥箱预约系统</h1>
+  <button id="settingsBtn" class="ghost-btn">⚙️ 设置</button>
+</div>
+
+<div id="configBanner" class="config-banner hidden">
+  ⚠️ 尚未配置云数据库，请点击右上角「设置」填入 Supabase 地址和密钥。
+</div>
+
+<main>
+  <section class="card form-card">
+    <h2>预约申请</h2>
+    <form id="bookingForm">
+      <label>申请人 / 课题组
+        <input type="text" id="name" required placeholder="如：张三 / 课题组A">
+      </label>
+      <label>开始时间
+        <input type="datetime-local" id="start" required>
+      </label>
+      <label>结束时间
+        <input type="datetime-local" id="end" required>
+      </label>
+      <label>用途说明
+        <input type="text" id="purpose" placeholder="如：样品干燥 60℃">
+      </label>
+      <button type="submit" class="primary-btn">提交预约</button>
+      <div id="formMsg" class="form-msg"></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>今日时间轴 <span id="todayDate" class="muted"></span></h2>
+    <div id="timeline" class="timeline"></div>
+  </section>
+
+  <section class="card">
+    <h2>预约列表 <span class="muted">(每 30 秒自动刷新)</span></h2>
+    <ul id="bookingList" class="booking-list"></ul>
+  </section>
+</main>
+
+<div id="settingsModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>云数据库设置（Supabase）</h3>
+    <label>Supabase URL
+      <input type="text" id="supaUrl" placeholder="https://xxxx.supabase.co">
+    </label>
+    <label>Anon Key
+      <input type="text" id="supaKey" placeholder="eyJ...">
+    </label>
+    <p class="hint">在 Supabase 项目 <b>Settings → API</b> 中获取。数据对所有人开放读写（实验室内部共享）。</p>
+    <div class="modal-actions">
+      <button id="saveSettings" class="primary-btn">保存</button>
+      <button id="closeSettings" class="ghost-btn">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+</body>
+</html>
