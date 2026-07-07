@@ -20,21 +20,6 @@ function loadConfig() {
   return false;
 }
 
-// ---- 设置弹窗 ----
-$('settingsBtn').onclick = () => $('settingsModal').classList.remove('hidden');
-$('closeSettings').onclick = () => $('settingsModal').classList.add('hidden');
-$('saveSettings').onclick = () => {
-  const url = $('supaUrl').value.trim();
-  const key = $('supaKey').value.trim();
-  if (!url || !key) { alert('请填写完整'); return; }
-  localStorage.setItem(LS_URL, url);
-  localStorage.setItem(LS_KEY, key);
-  supabase = window.supabase.createClient(url, key);
-  $('settingsModal').classList.add('hidden');
-  $('configBanner').classList.add('hidden');
-  init();
-};
-
 // ---- 初始化 ----
 async function init() {
   setTodayDate();
@@ -178,9 +163,10 @@ async function cancelBooking(id) {
   await loadBookings();
 }
 
-// ---- 提交预约 ----
-$('bookingForm').onsubmit = async (ev) => {
-  ev.preventDefault();
+// ---- 提交预约（绑定到按钮 onclick，避免原生表单提交刷新页面）----
+function submitBooking() {
+  if (!supabase) return showFormMsg('数据库未连接，请刷新页面后重试', 'err');
+
   const name = $('name').value.trim();
   const start = new Date($('start').value);
   const end = new Date($('end').value);
@@ -196,15 +182,15 @@ $('bookingForm').onsubmit = async (ev) => {
     return showFormMsg(`时间冲突！与 ${conflict.name} 的 ${fmt(conflict.start_time)}–${fmt(conflict.end_time)} 重叠`, 'err');
   }
 
-  const { error } = await supabase.from('bookings').insert({
+  supabase.from('bookings').insert({
     name, start_time: start.toISOString(), end_time: end.toISOString(), purpose
+  }).then(({ error }) => {
+    if (error) return showFormMsg('提交失败：' + error.message, 'err');
+    showFormMsg('预约成功 ✓', 'ok');
+    $('purpose').value = '';   // 只清空用途，保留申请人/时间方便连续预约
+    loadBookings();
   });
-  if (error) return showFormMsg('提交失败：' + error.message, 'err');
-
-  showFormMsg('预约成功 ✓', 'ok');
-  $('purpose').value = '';
-  await loadBookings();
-};
+}
 
 function showFormMsg(t, type) {
   const m = $('formMsg');
@@ -212,6 +198,33 @@ function showFormMsg(t, type) {
   setTimeout(() => { if (m.textContent === t) m.textContent = ''; }, 5000);
 }
 
-// ---- 启动 ----
-if (loadConfig()) init();
-else $('configBanner').classList.remove('hidden');
+// ---- 绑定 UI 事件（等 DOM 就绪后执行，确保元素已存在）----
+function bindUI() {
+  $('settingsBtn').onclick = () => $('settingsModal').classList.remove('hidden');
+  $('closeSettings').onclick = () => $('settingsModal').classList.add('hidden');
+  $('saveSettings').onclick = () => {
+    const url = $('supaUrl').value.trim();
+    const key = $('supaKey').value.trim();
+    if (!url || !key) { alert('请填写完整'); return; }
+    localStorage.setItem(LS_URL, url);
+    localStorage.setItem(LS_KEY, key);
+    supabase = window.supabase.createClient(url, key);
+    $('settingsModal').classList.add('hidden');
+    $('configBanner').classList.add('hidden');
+    init();
+  };
+
+  // 关键修复：提交按钮改为 type=button，点击不会触发原生表单提交（不会再整页刷新）
+  $('submitBtn').onclick = submitBooking;
+  // 保险：即便在输入框按回车触发表单 submit，也拦截掉
+  $('bookingForm').addEventListener('submit', (e) => e.preventDefault());
+
+  if (loadConfig()) init();
+  else $('configBanner').classList.remove('hidden');
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bindUI);
+} else {
+  bindUI();
+}
