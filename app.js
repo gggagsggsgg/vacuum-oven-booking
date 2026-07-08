@@ -234,7 +234,6 @@ function showFormMsg(t, type) {
 // ---- 绑定 UI 事件（等 DOM 就绪后执行，确保元素已存在）----
 function bindUI() {
   console.log('[DEBUG] bindUI called. supabase?', typeof window.supabase);
-  window.alert('[DEBUG] 脚本开始执行，supabase=' + typeof window.supabase);
   try {
     // 若 supabase 组件未加载（如本地库被缓存拦截），明确提示，避免点击无反应
     console.log('[DEBUG] checking window.supabase...');
@@ -243,7 +242,6 @@ function bindUI() {
       const b = $('configBanner');
       b.classList.remove('hidden');
       b.textContent = '错误：数据库组件未能加载（请强制刷新 Ctrl+Shift+R），若仍出现请告知。';
-      window.alert('错误：supabase.min.js 未加载！请强制刷新。');
       return;
     }
     console.log('[DEBUG] supabase library found, binding events...');
@@ -288,7 +286,6 @@ function bindUI() {
     if (doneBanner) { doneBanner.classList.add('hidden'); }
   } catch (err) {
     console.error('[DEBUG] bindUI FATAL ERROR:', err.message, err.stack);
-    window.alert('bindUI 出错：' + err.message);
     const b = $('configBanner');
     b.classList.remove('hidden');
     b.textContent = '页面初始化出错：' + err.message + '（请告知此信息）';
