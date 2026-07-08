@@ -221,35 +221,71 @@ function showFormMsg(t, type) {
 
 // ---- 绑定 UI 事件（等 DOM 就绪后执行，确保元素已存在）----
 function bindUI() {
-  // 若 supabase 组件未加载（如 CDN 被拦截），明确提示，避免点击无反应
-  if (typeof window.supabase === 'undefined') {
+  try {
+    // 若 supabase 组件未加载（如本地库被缓存拦截），明确提示，避免点击无反应
+    if (typeof window.supabase === 'undefined') {
+      const b = $('configBanner');
+      b.classList.remove('hidden');
+      b.textContent = '⚠️ 数据库组件未能加载（请尝试强制刷新 Ctrl+Shift+R），若仍出现请告知。';
+      return;
+    }
+
+    $('settingsBtn').onclick = () => $('settingsModal').classList.remove('hidden');
+    $('closeSettings').onclick = () => $('settingsModal').classList.add('hidden');
+    $('saveSettings').onclick = () => {
+      try {
+        const url = $('supaUrl').value.trim();
+        const key = $('supaKey').value.trim();
+        if (!url || !key) { alert('请填写完整'); return; }
+        localStorage.setItem(LS_URL, url);
+        localStorage.setItem(LS_KEY, key);
+        supabase = window.supabase.createClient(url, key);
+        $('settingsModal').classList.add('hidden');
+        $('configBanner').classList.add('hidden');
+        init();
+      } catch (e) {
+        showFormMsg('设置保存失败：' + e.message, 'err');
+      }
+    };
+
+    // 关键修复：提交按钮改为 type=button，点击不会触发原生表单提交
+    $('submitBtn').onclick = submitBooking;
+    // 保险：即便在输入框按回车触发表单 submit，也拦截掉
+    $('bookingForm').addEventListener('submit', (e) => e.preventDefault());
+
+    // 检查预置配置或本地存储配置
+    const hasConfig = loadConfig();
+    if (hasConfig) {
+      init();
+    } else {
+      $('configBanner').classList.remove('hidden');
+    }
+  } catch (err) {
+    // JS 错误时在页面上直接显示，帮忙诊断
     const b = $('configBanner');
     b.classList.remove('hidden');
-    b.textContent = '⚠️ 数据库组件未能加载，请检查网络后刷新页面重试。';
-    return;
+    b.textContent = '⚠️ 页面初始化出错：' + err.message + '（请告知此信息）';
+    console.error('bindUI error:', err);
   }
-  $('settingsBtn').onclick = () => $('settingsModal').classList.remove('hidden');
-  $('closeSettings').onclick = () => $('settingsModal').classList.add('hidden');
-  $('saveSettings').onclick = () => {
-    const url = $('supaUrl').value.trim();
-    const key = $('supaKey').value.trim();
-    if (!url || !key) { alert('请填写完整'); return; }
-    localStorage.setItem(LS_URL, url);
-    localStorage.setItem(LS_KEY, key);
-    supabase = window.supabase.createClient(url, key);
-    $('settingsModal').classList.add('hidden');
-    $('configBanner').classList.add('hidden');
-    init();
-  };
-
-  // 关键修复：提交按钮改为 type=button，点击不会触发原生表单提交（不会再整页刷新）
-  $('submitBtn').onclick = submitBooking;
-  // 保险：即便在输入框按回车触发表单 submit，也拦截掉
-  $('bookingForm').addEventListener('submit', (e) => e.preventDefault());
-
-  if (loadConfig()) init();
-  else $('configBanner').classList.remove('hidden');
 }
+
+// ---- 全局未捕获错误处理：把任何 JS 报错都显示在页面上，帮助诊断 ----
+window.addEventListener('error', function(e) {
+  const b = document.getElementById('configBanner');
+  if (b) {
+    b.classList.remove('hidden');
+    b.textContent = '⚠️ JS 错误：' + e.message + '（请告知此信息）';
+  }
+  console.error('Uncaught error:', e);
+});
+window.addEventListener('unhandledrejection', function(e) {
+  const b = document.getElementById('configBanner');
+  if (b) {
+    b.classList.remove('hidden');
+    b.textContent = '⚠️ 异步错误：' + (e.reason && e.reason.message) + '（请告知此信息）';
+  }
+  console.error('Unhandled rejection:', e);
+});
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', bindUI);
