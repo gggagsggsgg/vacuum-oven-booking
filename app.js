@@ -4,7 +4,7 @@ const DEFAULT_URL = 'https://utlkvouckmcmjvjasvdh.supabase.co';
 const DEFAULT_KEY = 'sb_publishable_8hEMG-giGCO9_v79KhlyDg_4npHcZEd';
 const LS_URL = 'vo_supabase_url';
 const LS_KEY = 'vo_supabase_key';
-let supabase = null;
+let supabaseClient = null;
 let bookings = [];
 
 const $ = (id) => document.getElementById(id);
@@ -28,8 +28,8 @@ function loadConfig() {
   if (url && key) {
     console.log('[loadConfig] creating supabase client...');
     try {
-      supabase = window.supabase.createClient(url, key);
-      console.log('[loadConfig] supabase client created OK. supabase endpoint:', supabase?.supabaseUrl);
+      supabaseClient = window.supabase.createClient(url, key);
+      console.log('[loadConfig] supabase client created OK. supabase endpoint:', supabaseClient?.supabaseUrl);
     } catch(e) {
       console.error('[loadConfig] createClient FAILED:', e.message);
       throw e;
@@ -49,10 +49,10 @@ async function init() {
 }
 
 async function loadBookings() {
-  if (!supabase) return;
+  if (!supabaseClient) return;
   try {
     const { data, error } = await withTimeout(
-      supabase.from('bookings').select('*').order('start_time', { ascending: true }),
+      supabaseClient.from('bookings').select('*').order('start_time', { ascending: true }),
       8000, '连接数据库超时（很可能是网络无法访问 supabase.co）'
     );
     if (error) { showFormMsg('加载失败：' + error.message, 'err'); return; }
@@ -182,14 +182,14 @@ function renderList() {
 // ---- 取消预约 ----
 async function cancelBooking(id) {
   if (!confirm('确定取消该预约？')) return;
-  const { error } = await supabase.from('bookings').delete().eq('id', id);
+  const { error } = await supabaseClient.from('bookings').delete().eq('id', id);
   if (error) { alert('取消失败：' + error.message); return; }
   await loadBookings();
 }
 
 // ---- 提交预约（绑定到按钮 onclick，避免原生表单提交刷新页面）----
 function submitBooking() {
-  if (!supabase) return showFormMsg('数据库未连接，请刷新页面后重试', 'err');
+  if (!supabaseClient) return showFormMsg('数据库未连接，请刷新页面后重试', 'err');
 
   const btn = $('submitBtn');
   const oldText = btn.textContent;
@@ -214,7 +214,7 @@ function submitBooking() {
   }
 
   withTimeout(
-    supabase.from('bookings').insert({ name, start_time: start.toISOString(), end_time: end.toISOString(), purpose }),
+    supabaseClient.from('bookings').insert({ name, start_time: start.toISOString(), end_time: end.toISOString(), purpose }),
     8000, '提交超时，很可能是网络无法访问数据库服务器（supabase.co）'
   ).then(({ error }) => {
     if (error) return showFormMsg('提交失败：' + error.message, 'err');
@@ -257,7 +257,7 @@ function bindUI() {
         if (!url || !key) { alert('请填写完整'); return; }
         localStorage.setItem(LS_URL, url);
         localStorage.setItem(LS_KEY, key);
-        supabase = window.supabase.createClient(url, key);
+        supabaseClient = window.supabase.createClient(url, key);
         $('settingsModal').classList.add('hidden');
         $('configBanner').classList.add('hidden');
         init();
@@ -274,7 +274,7 @@ function bindUI() {
     // 检查预置配置或本地存储配置
     console.log('[DEBUG] calling loadConfig()...');
     const hasConfig = loadConfig();
-    console.log('[DEBUG] loadConfig returned:', hasConfig, '| supabase object:', !!supabase);
+    console.log('[DEBUG] loadConfig returned:', hasConfig, '| supabase object:', !!supabaseClient);
     if (hasConfig) {
       console.log('[DEBUG] calling init()...');
       init();
