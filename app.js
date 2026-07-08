@@ -19,12 +19,24 @@ function withTimeout(promise, ms, msg) {
 
 // ---- 配置加载 ----
 function loadConfig() {
-  const url = localStorage.getItem(LS_URL) || DEFAULT_URL;
-  const key = localStorage.getItem(LS_KEY) || DEFAULT_KEY;
+  console.log('[loadConfig] checking localStorage...');
+  const storedUrl = localStorage.getItem(LS_URL);
+  const storedKey = localStorage.getItem(LS_KEY);
+  const url = storedUrl || DEFAULT_URL;
+  const key = storedKey || DEFAULT_KEY;
+  console.log('[loadConfig] URL:', url, '| usingDefault?', !storedUrl, '| key type:', key.substring(0, 10) + '...');
   if (url && key) {
-    supabase = window.supabase.createClient(url, key);
+    console.log('[loadConfig] creating supabase client...');
+    try {
+      supabase = window.supabase.createClient(url, key);
+      console.log('[loadConfig] supabase client created OK. supabase endpoint:', supabase?.supabaseUrl);
+    } catch(e) {
+      console.error('[loadConfig] createClient FAILED:', e.message);
+      throw e;
+    }
     return true;
   }
+  console.warn('[loadConfig] no url or key available');
   return false;
 }
 
@@ -221,14 +233,20 @@ function showFormMsg(t, type) {
 
 // ---- 绑定 UI 事件（等 DOM 就绪后执行，确保元素已存在）----
 function bindUI() {
+  console.log('[DEBUG] bindUI called. supabase?', typeof window.supabase);
+  window.alert('[DEBUG] 脚本开始执行，supabase=' + typeof window.supabase);
   try {
     // 若 supabase 组件未加载（如本地库被缓存拦截），明确提示，避免点击无反应
+    console.log('[DEBUG] checking window.supabase...');
     if (typeof window.supabase === 'undefined') {
+      console.error('[DEBUG] ERROR: supabase library NOT loaded!');
       const b = $('configBanner');
       b.classList.remove('hidden');
-      b.textContent = '⚠️ 数据库组件未能加载（请尝试强制刷新 Ctrl+Shift+R），若仍出现请告知。';
+      b.textContent = '错误：数据库组件未能加载（请强制刷新 Ctrl+Shift+R），若仍出现请告知。';
+      window.alert('错误：supabase.min.js 未加载！请强制刷新。');
       return;
     }
+    console.log('[DEBUG] supabase library found, binding events...');
 
     $('settingsBtn').onclick = () => $('settingsModal').classList.remove('hidden');
     $('closeSettings').onclick = () => $('settingsModal').classList.add('hidden');
@@ -254,18 +272,26 @@ function bindUI() {
     $('bookingForm').addEventListener('submit', (e) => e.preventDefault());
 
     // 检查预置配置或本地存储配置
+    console.log('[DEBUG] calling loadConfig()...');
     const hasConfig = loadConfig();
+    console.log('[DEBUG] loadConfig returned:', hasConfig, '| supabase object:', !!supabase);
     if (hasConfig) {
+      console.log('[DEBUG] calling init()...');
       init();
     } else {
+      console.warn('[DEBUG] no config found, showing setup banner');
       $('configBanner').classList.remove('hidden');
+      $('configBanner').textContent = '请在右上角【设置】中填写 Supabase 地址和密钥后刷新页面';
     }
+    console.log('[DEBUG] bindUI done. Showing success banner.');
+    const doneBanner = $('configBanner');
+    if (doneBanner) { doneBanner.classList.add('hidden'); }
   } catch (err) {
-    // JS 错误时在页面上直接显示，帮忙诊断
+    console.error('[DEBUG] bindUI FATAL ERROR:', err.message, err.stack);
+    window.alert('bindUI 出错：' + err.message);
     const b = $('configBanner');
     b.classList.remove('hidden');
-    b.textContent = '⚠️ 页面初始化出错：' + err.message + '（请告知此信息）';
-    console.error('bindUI error:', err);
+    b.textContent = '页面初始化出错：' + err.message + '（请告知此信息）';
   }
 }
 
@@ -287,8 +313,12 @@ window.addEventListener('unhandledrejection', function(e) {
   console.error('Unhandled rejection:', e);
 });
 
+console.log('[app.js] SCRIPT STARTED. Total lines in file (approx).');
+
 if (document.readyState === 'loading') {
+  console.log('[app.js] document still loading, waiting for DOMContentLoaded...');
   document.addEventListener('DOMContentLoaded', bindUI);
 } else {
+  console.log('[app.js] document already ready, calling bindUI now...');
   bindUI();
 }
